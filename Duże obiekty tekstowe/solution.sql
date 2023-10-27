@@ -1,0 +1,102 @@
+-- 1.
+CREATE TABLE DOKUMENTY (
+    ID NUMBER(12) PRIMARY KEY,
+    DOKUMENT CLOB
+);
+
+-- 2.
+DECLARE
+    doc CLOB;
+BEGIN
+    DBMS_LOB.CREATETEMPORARY(doc, TRUE);
+    FOR I IN 1..10000
+    LOOP
+        doc := CONCAT(DOC, 'Oto tekst');
+    END LOOP;
+    INSERT INTO DOKUMENTY VALUES(1, doc);
+    DBMS_LOB.FREETEMPORARY(doc);
+    COMMIT;
+END;
+
+-- 3.
+SELECT * FROM DOKUMENTY;
+SELECT UPPER(DOKUMENT) FROM DOKUMENTY;
+SELECT LENGTH(DOKUMENT) FROM DOKUMENTY;
+SELECT DBMS_LOB.GETLENGTH(DOKUMENT) FROM DOKUMENTY;
+SELECT SUBSTR(DOKUMENT, 5, 1000) FROM DOKUMENTY;
+SELECT DBMS_LOB.SUBSTR(DOKUMENT, 1000, 5) FROM DOKUMENTY;
+
+-- 4.
+INSERT INTO DOKUMENTY VALUES(2, EMPTY_CLOB());
+
+-- 5.
+INSERT INTO DOKUMENTY VALUES(3, NULL);
+COMMIT;
+
+-- 7.
+DECLARE
+    lobd CLOB;
+    fils BFILE := BFILENAME('TPD_DIR','dokument.txt');
+    doffset integer := 1;
+    soffset integer := 1;
+    langctx integer := 0;
+    warn integer := null;
+BEGIN
+    SELECT DOKUMENT INTO lobd
+    FROM DOKUMENTY
+    WHERE DBMS_LOB.GETLENGTH(DOKUMENT) = 0
+    FOR UPDATE;
+    DBMS_LOB.FILEOPEN(fils, DBMS_LOB.file_readonly);
+    DBMS_LOB.LOADCLOBFROMFILE(lobd, fils, DBMS_LOB.LOBMAXSIZE,
+        doffset, soffset, 0, langctx, warn); 
+    DBMS_LOB.FILECLOSE(fils);
+    COMMIT;
+    DBMS_OUTPUT.PUT_LINE('Status operacji: '||warn);
+END;
+
+-- 8.
+UPDATE DOKUMENTY SET
+    DOKUMENT = TO_CLOB(BFILENAME('TPD_DIR','dokument.txt'))
+WHERE ID = 3;
+COMMIT;
+
+-- 9.
+SELECT * FROM DOKUMENTY;
+
+-- 10.
+SELECT DBMS_LOB.GETLENGTH(DOKUMENT) FROM DOKUMENTY;
+
+-- 11.
+DROP TABLE DOKUMENTY;
+
+-- 12.
+CREATE OR REPLACE PROCEDURE CLOB_CENSOR(doc IN OUT CLOB, replace_from VARCHAR2) AS
+    replace_to VARCHAR2(20) := '';
+    current_pos INTEGER := 1;
+BEGIN 
+    FOR i IN 1.. LENGTH(replace_from) LOOP
+        replace_to := CONCAT(replace_to, '.');
+    END LOOP;
+    
+    LOOP  
+        current_pos := DBMS_LOB.INSTR(doc, replace_from, current_pos);
+        EXIT WHEN current_pos = 0;
+        DBMS_LOB.WRITE(doc, LENGTH(replace_from), current_pos, replace_to);
+    END LOOP;  
+END;
+
+-- 13.
+--CREATE TABLE BIOGRAPHIES AS SELECT * FROM ZTPD.BIOGRAPHIES;
+DECLARE
+    doc CLOB;
+BEGIN
+    SELECT DOKUMENT INTO doc
+    FROM DOKUMENTY
+    WHERE ID = 1
+    FOR UPDATE;
+    
+    CLOB_CENSOR(doc, 'tek');
+    COMMIT;
+END;
+-- 14.
+--DROP TABLE BIOGRAPHIES;
